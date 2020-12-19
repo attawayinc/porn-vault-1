@@ -13,7 +13,7 @@
     "izzyPort": 8000
   },
   "import": {
-    "images": ["/images"],
+    "images": ["/i`mages"],
     "videos": ["/videos"]
   },
   "log": {
