@@ -14,9 +14,11 @@ import {
   getPageSize,
   includeFilter,
   ISearchResults,
+  normalizeQuery,
   ratingFilter,
   searchQuery,
   shuffle,
+  shuffleSwitch,
   sort,
 } from "./common";
 import { getClient, indexMap } from "./index";
@@ -54,7 +56,7 @@ export async function createMovieSearchDoc(movie: Movie): Promise<IMovieSearchDo
   return {
     id: movie._id,
     addedOn: movie.addedOn,
-    name: movie.name,
+    name: normalizeQuery(movie.name),
     labels: labels.map((l) => l._id),
     actors: actors.map((a) => a._id),
     actorNames: actors.map(getActorNames).flat(),
@@ -120,7 +122,7 @@ export async function searchMovies(
   shuffleSeed = "default",
   extraFilter: unknown[] = []
 ): Promise<ISearchResults> {
-  logger.verbose(`Searching movies for '${options.query || "<no query>"}'...`);
+  logger.verbose(`Searching movies for '${options.query?.trim() || "<no query>"}'...`);
 
   const count = await getCount(indexMap.movies);
   if (count === 0) {
@@ -132,6 +134,9 @@ export async function searchMovies(
     };
   }
 
+  const query = searchQuery(options.query, ["name", "actorNames^1.5", "labelNames", "studioName"]);
+  const _shuffle = shuffle(shuffleSeed, query, options.sortBy);
+
   const result = await getClient().search<IMovieSearchDoc>({
     index: indexMap.movies,
     ...getPage(options.page, options.skip, options.take),
@@ -140,10 +145,7 @@ export async function searchMovies(
       track_total_hits: true,
       query: {
         bool: {
-          must: [
-            ...shuffle(shuffleSeed, options.sortBy),
-            ...searchQuery(options.query, ["name", "actorNames^1.5", "labelNames", "studioName"]),
-          ],
+          ...shuffleSwitch(query, _shuffle),
           filter: [
             ...ratingFilter(options.rating),
             ...bookmark(options.bookmark),
